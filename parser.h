@@ -1,6 +1,9 @@
 #ifndef PARSER_H
 #define PARSER_H
 
+#define CONFIG_FILE "/etc/my_ftp_server/server.conf"
+
+
 typedef struct {
     int PORT;
     int BUFFER_SIZE;
@@ -12,7 +15,7 @@ typedef struct {
     int DATA_TIMEOUT;
 } server_config_t;
 
-server_config_t* load_config(const char* config_file);
+server_config_t* load_config();
 void free_config(server_config_t* config);
 void print_config(const server_config_t* config);
 

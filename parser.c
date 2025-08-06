@@ -1,11 +1,12 @@
+#include "parser.h"
+
 #include <ctype.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
-#include "parser.h"
 #include "logger.h"
 
-server_config_t* load_config(const char* config_file) {
+server_config_t* load_config() {
     server_config_t* config = malloc(sizeof(server_config_t));
     if (!config) {
         perror("Failed to allocate memory for config");
@@ -21,11 +22,28 @@ server_config_t* load_config(const char* config_file) {
     config->CLIENT_TIMEOUT = 100;
     config->DATA_TIMEOUT = 60;
 
-    FILE* file = fopen(config_file, "r");
+    const char* paths_to_try[] = {
+        getenv("MY_FTP_CONFIG"),
+        CONFIG_FILE,
+        "../server.conf"
+    };
+
+    FILE* file = NULL;
+    for (int i = 0; i < 3; ++i) {
+        if (paths_to_try[i]) {
+            file = fopen(paths_to_try[i], "r");
+            if (file) {
+                log_info("Loaded config from: %s\n", paths_to_try[i]);
+                break;
+            }
+        }
+    }
+
     if (!file) {
-        printf("Warning: Config file '%s' not found, using defaults\n", config_file);
+        log_info("Warning: No config file found, using default values\n");
         return config;
     }
+
 
     char line[512];
     int line_num = 0;
