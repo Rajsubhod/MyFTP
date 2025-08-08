@@ -639,3 +639,200 @@ void handle_list(ftp_session_t* session, char* args)
 
     send_response(session, 226, "Transfer complete.");
 }
+
+void handle_retr(ftp_session_t* session, char* filename)
+{
+    if (!session->is_authenticated)
+    {
+        send_response(session, 530, "Not logged in.");
+        return;
+    }
+
+    char full_path[1024];
+    snprintf(full_path, sizeof(full_path), "%s/%s", session->current_dir, filename);
+
+    FILE* file = fopen(full_path, "rb");
+    if (!file)
+    {
+        perror("fopen failed");
+        send_response(session, 550, "Failed to open file for reading.");
+        return;
+    }
+
+    int data_sock;
+    if (session->passive_mode)
+    {
+        data_sock = accept(session->passive_socket, NULL, NULL);
+        if (data_sock < 0)
+        {
+            perror("accept failed for RETR");
+            send_response(session, 425, "Can't open data connection.");
+            fclose(file);
+            return;
+        }
+    } else
+    {
+        send_response(session, 550, "Active mode not supported.");
+        fclose(file);
+        return;
+    }
+
+    send_response(session, 150, "Opening data connection for file transfer.");
+    session->data_socket = data_sock;
+    if (create_ssl_data_connection(session, data_sock) < 0)
+    {
+        send_response(session, 425, "Can't open data connection.");
+        fclose(file);
+        return;
+    }
+
+    char buffer[5012];
+    size_t bytes_read;
+    size_t total_sent = 0;
+
+    while ((bytes_read = fread(buffer, 1, sizeof(buffer), file)) > 0)
+    {
+        if (ssl_data_send(session, buffer, bytes_read) < 0)
+        {
+            send_response(session, 426, "Connection closed; transfer aborted.");
+            perror("send failed");
+            break;
+        }
+        total_sent += bytes_read;
+    }
+
+    fclose(file);
+
+    if (session->ssl_data_channel) {
+        SSL_shutdown(session->ssl_data_channel);
+        SSL_free(session->ssl_data_channel);
+        session->ssl_data_channel = NULL;
+    }
+
+    close(data_sock);
+    session->data_socket = -1;
+
+    if (session->passive_socket > 0) {
+        close(session->passive_socket);
+        session->passive_socket = -1;
+    }
+    session->passive_mode = 0;
+
+    printf("File transfer completed: %s (%zu bytes sent)\n", full_path, total_sent);
+    send_response(session, 226, "Transfer complete.");
+}
+
+void handle_stor(ftp_session_t* session, char* filename)
+{
+    if (!session->is_authenticated) {
+        send_response(session, 550, "Not logged in.");
+        return;
+    }
+
+    char file_path[1024];
+    snprintf(file_path, sizeof(file_path), "%s/%s", session->current_dir, filename);
+
+    FILE* file = fopen(file_path, "wb");
+    if (!file) {
+        perror("fopen failed");
+        send_response(session, 550, "Failed to open file for writing.");
+        return;
+    }
+
+    int data_sock;
+    if (session->passive_mode && session->passive_socket > 0)
+    {
+        printf("STOR: Waiting for data connection on passive socket %d...\n", session->passive_socket);
+
+        data_sock = accept(session->passive_socket, NULL, NULL);
+        if (data_sock < 0)
+        {
+            perror("accept failed for RETR");
+            send_response(session, 425, "Can't open data connection.");
+            fclose(file);
+            return;
+        }
+    } else
+    {
+        send_response(session, 550, "Active mode not supported.");
+        fclose(file);
+        return;
+    }
+
+    send_response(session, 150, "Ready to receive file.");
+
+    session->data_socket = data_sock;
+    if (create_ssl_data_connection(session, data_sock) < 0)
+    {
+        send_response(session, 425, "Can't open data connection.");
+        fclose(file);
+        return;
+    }
+
+    char buffer[5012];
+    int bytes_received = 0;
+    size_t total_received = 0;
+    int transfer_error = 0;
+    int transfer_complete = 0;
+    printf("STOR: Starting file transfer for %s\n", filename);
+
+    while (!transfer_complete && !transfer_error)
+    {
+        bytes_received = ssl_data_recv(session, buffer, sizeof(buffer));
+        if (bytes_received < 0)
+        {
+            perror("recv failed");
+            send_response(session, 426, "Connection closed; transfer aborted.");
+            transfer_error = 1;
+            int ssl_error = SSL_get_error(session->ssl_data_channel, bytes_received);
+            printf("STOR: SSL error code: %d\n", ssl_error);
+            break;
+        }
+        if (bytes_received == 0)
+        {
+            printf("STOR: Connection closed by client (normal end of transfer)\n");
+            transfer_complete = 1;
+        }
+        else
+        {
+            printf("STOR: Received %d bytes\n", bytes_received);
+            size_t bytes_written = fwrite(buffer, 1, bytes_received, file);
+            if (bytes_written != (size_t)bytes_received) {
+                perror("fwrite failed");
+                send_response(session, 452, "Insufficient storage space.");
+                transfer_error = 1;
+                break;
+            }
+            total_received += bytes_received;
+
+            if (total_received % (5012 * 10) == 0) {
+                fflush(file);
+            }
+        }
+    }
+
+    printf("STOR: Transfer loop ended. bytes_received = %d, total_received = %zu\n",bytes_received, total_received);
+
+    fclose(file);
+
+    if (session->ssl_data_channel) {
+        SSL_shutdown(session->ssl_data_channel);
+        SSL_free(session->ssl_data_channel);
+        session->ssl_data_channel = NULL;
+    }
+
+    close(data_sock);
+    session->data_socket = -1;
+
+    close(session->passive_socket);
+    session->passive_socket = -1;
+    session->passive_mode = 0;
+
+    if (!transfer_error) {
+        printf("File upload completed successfully: %s (%zu bytes received)\n", file_path, total_received);
+        send_response(session, 226, "Transfer complete.");
+    } else
+    {
+        printf("File upload failed: %s (%zu bytes received before error)\n", file_path, total_received);
+    }
+}
