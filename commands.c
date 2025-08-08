@@ -269,3 +269,102 @@ void handle_syst(ftp_session_t* session, char* args)
     const char* response = "215 UNIX Type: L8\r\n";
     ssl_send(session, response, strlen(response));
 }
+
+void handle_feat(ftp_session_t* session, char* args)
+{
+    (void)args;
+    char response[] = "211-Features supported:\r\n"
+        " AUTH TLS\r\n"
+        " PBSZ\r\n"
+        " PROT\r\n"
+        " UTF8\r\n"
+        " CCC\r\n"
+        " TYPE\r\n"
+        " MODE\r\n"
+        " STRU\r\n"
+        " PWD\r\n"
+        " CWD\r\n"
+        "211 End\r\n";
+    ssl_send(session, response, strlen(response));
+}
+
+void handle_opts(ftp_session_t* session, char* option)
+{
+    if (!option)
+    {
+        send_response(session, 501, "Syntax error in parameters");
+        return;
+    }
+
+    char full_option[64];
+    snprintf(full_option, sizeof(full_option), "%s", option);
+
+    char* next_arg = strtok(NULL, "");
+    if (next_arg)
+    {
+        strncat(full_option, " ", sizeof(full_option) - strlen(full_option) - 1);
+        strncat(full_option, next_arg, sizeof(full_option) - strlen(full_option) - 1);
+    }
+
+    if (strcasecmp(full_option, "UTF8 ON") == 0)
+    {
+        send_response(session, 200, "UTF8 set to on");
+    }
+    else
+    {
+        send_response(session, 501, "Option not understood");
+    }
+}
+
+void handle_pwd(ftp_session_t* session, char* args)
+{
+    (void)args;
+
+    if (!session->is_authenticated)
+    {
+        send_response(session, 530, "Not logged in.");
+        return;
+    }
+
+    char response[512];
+    snprintf(response, sizeof(response), "\"%s\" is the current directory.\r\n", session->current_dir);
+    send_response(session, 257, response);
+}
+
+void handle_cwd(ftp_session_t* session, char* path)
+{
+    if (!session->is_authenticated)
+    {
+        send_response(session, 530, "Not logged in.");
+        return;
+    }
+
+    if (path == NULL || strcmp(path, "") == 0)
+    {
+        path = "/";
+    }
+
+    char full_path[512];
+    if (path[0] == '/')
+    {
+        // Relative path
+        snprintf(full_path, sizeof(full_path), "%s", path);
+    }
+    else
+    {
+        // Absolute path
+        snprintf(full_path, sizeof(full_path), "%s/%s", session->current_dir, path);
+    }
+
+    struct stat st;
+    if (stat(full_path, &st) == 0 && S_ISDIR(st.st_mode))
+    {
+        strcpy(session->current_dir, full_path);
+        printf("%s\n", session->current_dir);
+        send_response(session, 250, "Directory changed.");
+    }
+    else
+    {
+        send_response(session, 550, "Directory not found.");
+    }
+}
