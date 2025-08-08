@@ -144,3 +144,128 @@ void handle_auth(ftp_session_t* session, char* auth_type)
         send_response(session, 504, "AUTH) not supported.");
     }
 }
+
+void handle_pbsz(ftp_session_t* session, char* size)
+{
+    if (!session->ssl_enabled)
+    {
+        send_response(session, 503, "PBSZ not allowed on unsecured control connection");
+        return;
+    }
+
+    if (size && strcmp(size, "0") == 0)
+    {
+        send_response(session, 200, "PBSZ set to 0");
+    }
+}
+
+void handle_prot(ftp_session_t* session, char* level)
+{
+    if (!session->ssl_enabled)
+    {
+        send_response(session, 503, "PROT not allowed on unsecured control connection");
+        return;
+    }
+
+    if (!level)
+    {
+        send_response(session, 501, "PROT requires a parameter");
+        return;
+    }
+
+    switch (level[0])
+    {
+    case 'C':
+    case 'c':
+        session->protection_level = FTP_PROT_CLEAR;
+        send_response(session, 200, "Protection level set to Clear");
+        break;
+    case 'P':
+    case 'p':
+        session->protection_level = FTP_PROT_PRIVATE;
+        send_response(session, 200, "Protection level set to Private");
+        break;
+    default:
+        send_response(session, 504, "Protection level not supported");
+    }
+}
+
+void handle_ccc(ftp_session_t* session, char* args)
+{
+    (void)args;
+    if (!session->ssl_enabled)
+    {
+        send_response(session, 533, "Control connection not protected");
+        return;
+    }
+
+    send_response(session, 200, "Clearing control connection");
+
+    if (session->ssl_data_channel)
+    {
+        SSL_shutdown(session->ssl_data_channel);
+        SSL_free(session->ssl_data_channel);
+        session->ssl_data_channel = NULL;
+    }
+
+    if (session->ssl_control_channel)
+    {
+        SSL_shutdown(session->ssl_control_channel);
+        SSL_free(session->ssl_control_channel);
+        session->ssl_control_channel = NULL;
+    }
+
+    session->ssl_enabled = 0;
+    printf("Control connection cleared of SSL/TLS\n");
+}
+
+void handle_type(ftp_session_t* session, char* type)
+{
+    if (strcasecmp(type, "A") == 0)
+    {
+        session->transfer_type = FTP_TYPE_IMAGE;
+        send_response(session, 200, "Type set to ASCII.");
+    }
+    else if (strcasecmp(type, "I") == 0)
+    {
+        session->transfer_type = FTP_TYPE_IMAGE;
+        send_response(session, 200, "Type set to Image.");
+    }
+    else
+    {
+        send_response(session, 504, "Invalid type specified.");
+    }
+}
+
+void handle_mode(ftp_session_t* session, char* mode)
+{
+    if (strcasecmp(mode, "S") == 0)
+    {
+        session->transfer_mode = FTP_MODE_STREAM;
+        send_response(session, 200, "Mode set to Stream.");
+    }
+    else
+    {
+        send_response(session, 504, "Invalid mode specified.");
+    }
+}
+
+void handle_stru(ftp_session_t* session, char* stru)
+{
+    if (strcasecmp(stru, "F") == 0)
+    {
+        session->transfer_structure = FTP_STRU_FILE;
+        send_response(session, 200, "Structure set to File.");
+    }
+    else
+    {
+        send_response(session, 504, "Invalid structure specified.");
+    }
+}
+
+void handle_syst(ftp_session_t* session, char* args)
+{
+    (void)args;
+    const char* response = "215 UNIX Type: L8\r\n";
+    ssl_send(session, response, strlen(response));
+}
