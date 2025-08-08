@@ -836,3 +836,103 @@ void handle_stor(ftp_session_t* session, char* filename)
         printf("File upload failed: %s (%zu bytes received before error)\n", file_path, total_received);
     }
 }
+
+void handle_dele(ftp_session_t* session, char* filename)
+{
+    if (!session->is_authenticated)
+    {
+        send_response(session, 530, "Not logged in.");
+        return;
+    }
+
+    if (!filename || strlen(filename) == 0)
+    {
+        send_response(session, 501, "No filename provided.");
+        return;
+    }
+
+    if (strcmp(filename, ".") == 0 || strcmp(filename, "..") == 0) {
+        send_response(session, 550, "Invalid filename.");
+        return;
+    }
+
+    char full_path[512];
+    snprintf(full_path, sizeof(full_path), "%s/%s", session->current_dir, filename);
+
+    if (unlink(full_path) == 0)
+    {
+        send_response(session, 250, "File deleted successfully.");
+    }
+    else
+    {
+        perror("unlink failed");
+        send_response(session, 550, "File deletion failed.");
+    }
+}
+
+void handle_rnfr(ftp_session_t* session, char* oldname)
+{
+    if (!session->is_authenticated)
+    {
+        send_response(session, 530, "Not logged in.");
+        return;
+    }
+
+    if (!oldname || strlen(oldname) == 0)
+    {
+        send_response(session, 501, "No filename provided.");
+        return;
+    }
+
+    char full_path[PATH_MAX];
+    snprintf(full_path, sizeof(full_path), "%s/%s", session->current_dir, oldname);
+
+    // Check if file exists
+    struct stat st;
+    if (stat(full_path, &st) != 0) {
+        send_response(session, 550, "File not found.");
+        return;
+    }
+
+    strncpy(session->rename_file_path, full_path, sizeof(session->rename_file_path));
+    session->rename_ready = 1;
+
+    send_response(session, 350, "File exists, ready for destination name.");
+}
+
+void handle_rnto(ftp_session_t* session, char* newname)
+{
+    if (!session->is_authenticated)
+    {
+        send_response(session, 530, "Not logged in.");
+        return;
+    }
+
+    if (!session->rename_ready)
+    {
+        send_response(session, 503, "Bad sequence of commands (RNFR missing).");
+        return;
+    }
+
+    if (!newname || strlen(newname) == 0)
+    {
+        send_response(session, 501, "No new filename provided.");
+        return;
+    }
+
+    char new_full_path[PATH_MAX];
+    snprintf(new_full_path, sizeof(new_full_path), "%s/%s", session->current_dir, newname);
+
+    if (rename(session->rename_file_path, new_full_path) == 0)
+    {
+        send_response(session, 250, "File renamed successfully.");
+    }
+    else
+    {
+        perror("rename failed");
+        send_response(session, 550, "File rename failed.");
+    }
+
+    session->rename_ready = 0;
+    session->rename_file_path[0] = '\0';
+}
