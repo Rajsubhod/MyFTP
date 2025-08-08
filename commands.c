@@ -417,6 +417,76 @@ void handle_cwd(ftp_session_t* session, char* path)
     }
 }
 
+void handle_rmd(ftp_session_t* session, char* path)
+{
+    if (!session->is_authenticated)
+    {
+        send_response(session, 530, "Not logged in.");
+        return;
+    }
+
+    if (!path || strlen(path) == 0)
+    {
+        send_response(session, 501, "Syntax error in parameters or arguments.");
+        return;
+    }
+
+
+    if (strcmp(path, ".") == 0 || strcmp(path, "..") == 0)
+    {
+        send_response(session, 550, "Cannot remove special directories.");
+        return;
+    }
+
+    char full_path[512];
+    if (path[0] == '/')
+    {
+        snprintf(full_path, sizeof(full_path), "%s", path);
+    }
+    else
+    {
+        snprintf(full_path, sizeof(full_path), "%s/%s", session->current_dir, path);
+    }
+
+    if (rmdir(full_path) == 0)
+    {
+        send_response(session, 250, "Directory removed.");
+    }
+    else
+    {
+        perror("rmdir failed");
+        send_response(session, 550, "Failed to remove directory.");
+    }
+}
+
+void handle_mkd(ftp_session_t* session, char* path)
+{
+    if (!session->is_authenticated)
+    {
+        send_response(session, 530, "Not logged in.");
+        return;
+    }
+
+    if (!path || strlen(path) == 0)
+    {
+        send_response(session, 501, "Syntax error in parameters or arguments.");
+        return;
+    }
+
+    char full_path[512];
+    snprintf(full_path, sizeof(full_path), "%s/%s", session->current_dir, path);
+
+    if (mkdir(full_path, 0755) == 0)
+    {
+        send_response(session, 257, "Directory created.");
+    }
+    else
+    {
+        perror("mkdir failed");
+        send_response(session, 550, "Failed to create directory.");
+    }
+}
+
 void handle_pasv(ftp_session_t* session, char* args)
 {
     (void)args;
@@ -498,6 +568,17 @@ void handle_pasv(ftp_session_t* session, char* args)
     send_response(session, 227, response);
 
     log_info("PASV: Response sent, waiting for client command...\n");
+}
+
+void handle_noop(ftp_session_t* session, char* args)
+{
+    (void)args;
+    if (!session->is_authenticated)
+    {
+        send_response(session, 530, "Not logged in.");
+        return;
+    }
+    send_response(session, 200, "OK");
 }
 
 void handle_list(ftp_session_t* session, char* args)
@@ -718,7 +799,7 @@ void handle_retr(ftp_session_t* session, char* filename)
     }
     session->passive_mode = 0;
 
-    printf("File transfer completed: %s (%zu bytes sent)\n", full_path, total_sent);
+    log_info("File transfer completed: %s (%zu bytes sent)\n", full_path, total_sent);
     send_response(session, 226, "Transfer complete.");
 }
 
@@ -742,7 +823,7 @@ void handle_stor(ftp_session_t* session, char* filename)
     int data_sock;
     if (session->passive_mode && session->passive_socket > 0)
     {
-        printf("STOR: Waiting for data connection on passive socket %d...\n", session->passive_socket);
+        log_info("STOR: Waiting for data connection on passive socket %d...\n", session->passive_socket);
 
         data_sock = accept(session->passive_socket, NULL, NULL);
         if (data_sock < 0)
@@ -774,7 +855,7 @@ void handle_stor(ftp_session_t* session, char* filename)
     size_t total_received = 0;
     int transfer_error = 0;
     int transfer_complete = 0;
-    printf("STOR: Starting file transfer for %s\n", filename);
+    log_info("STOR: Starting file transfer for %s\n", filename);
 
     while (!transfer_complete && !transfer_error)
     {
@@ -785,17 +866,17 @@ void handle_stor(ftp_session_t* session, char* filename)
             send_response(session, 426, "Connection closed; transfer aborted.");
             transfer_error = 1;
             int ssl_error = SSL_get_error(session->ssl_data_channel, bytes_received);
-            printf("STOR: SSL error code: %d\n", ssl_error);
+            log_error("STOR: SSL error code: %d\n", ssl_error);
             break;
         }
         if (bytes_received == 0)
         {
-            printf("STOR: Connection closed by client (normal end of transfer)\n");
+            log_debug("STOR: Connection closed by client (normal end of transfer)\n");
             transfer_complete = 1;
         }
         else
         {
-            printf("STOR: Received %d bytes\n", bytes_received);
+            // printf("STOR: Received %d bytes\n", bytes_received);
             size_t bytes_written = fwrite(buffer, 1, bytes_received, file);
             if (bytes_written != (size_t)bytes_received) {
                 perror("fwrite failed");
@@ -811,7 +892,7 @@ void handle_stor(ftp_session_t* session, char* filename)
         }
     }
 
-    printf("STOR: Transfer loop ended. bytes_received = %d, total_received = %zu\n",bytes_received, total_received);
+    // printf("STOR: Transfer loop ended. bytes_received = %d, total_received = %zu\n",bytes_received, total_received);
 
     fclose(file);
 
@@ -829,11 +910,11 @@ void handle_stor(ftp_session_t* session, char* filename)
     session->passive_mode = 0;
 
     if (!transfer_error) {
-        printf("File upload completed successfully: %s (%zu bytes received)\n", file_path, total_received);
+        log_info("File upload completed successfully: %s (%zu bytes received)\n", file_path, total_received);
         send_response(session, 226, "Transfer complete.");
     } else
     {
-        printf("File upload failed: %s (%zu bytes received before error)\n", file_path, total_received);
+        log_error("File upload failed: %s (%zu bytes received before error)\n", file_path, total_received);
     }
 }
 
@@ -887,7 +968,6 @@ void handle_rnfr(ftp_session_t* session, char* oldname)
     char full_path[PATH_MAX];
     snprintf(full_path, sizeof(full_path), "%s/%s", session->current_dir, oldname);
 
-    // Check if file exists
     struct stat st;
     if (stat(full_path, &st) != 0) {
         send_response(session, 550, "File not found.");
