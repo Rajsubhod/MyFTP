@@ -75,7 +75,7 @@ SSL_CTX *create_ssl_context() {
 }
 
 int configure_ssl_context(SSL_CTX *ctx, ftp_server_state_t *server_state) {
-    if (SSL_CTX_use_certificate_file(ctx, server_state->config.CERT_FILE,SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ctx, server_state->config.CERT_FILE, SSL_FILETYPE_PEM) <= 0) {
         ERR_print_errors_fp(stderr);
         log_error("Failed to load certificate from %s\n", server_state->config.CERT_FILE);
         return 0;
