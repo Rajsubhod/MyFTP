@@ -129,7 +129,7 @@ void handle_pass(ftp_session_t* session, char* password)
         encrypted_pass = pwd->pw_passwd;
     }
 
-    char* result = crypt(encrypted_pass, password);
+    char* result = crypt(password, encrypted_pass);
     if (!result)
     {
         log_info("Invalid Username or Password.");
@@ -634,7 +634,7 @@ void handle_list(ftp_session_t* session, char* args)
     char list_item[1024];
 
     time_t now = time(NULL);
-    struct tm* now_tm = localtime(&now);
+    // struct tm* now_tm = localtime(&now);
 
     while ((entry = readdir(dir)) != NULL)
     {
