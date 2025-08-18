@@ -269,7 +269,7 @@ void handle_type(ftp_session_t* session, char* type)
 {
     if (strcasecmp(type, "A") == 0)
     {
-        session->transfer_type = FTP_TYPE_IMAGE;
+        session->transfer_type = FTP_TYPE_ASCII;
         send_response(session, 200, "Type set to ASCII.");
     }
     else if (strcasecmp(type, "I") == 0)
