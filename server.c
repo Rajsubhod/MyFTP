@@ -160,7 +160,7 @@ int main(void) {
 
     printf("FTP Server listening on port %d\n", server_state->config.PORT);
     printf("FTP root directory: %s\n", server_state->config.FTP_ROOT);
-    printf("FTP Server listening of ip address: %s\n", inet_ntoa(server_addr.sin_addr));
+    printf("FTP Server listening on ip address: %s\n", inet_ntoa(server_addr.sin_addr));
 
     signal(SIGINT, handle_sigint);
     signal(SIGPIPE, SIG_IGN);
