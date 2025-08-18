@@ -187,7 +187,7 @@ void handle_auth(ftp_session_t* session, char* auth_type)
     }
     else
     {
-        send_response(session, 504, "AUTH) not supported.");
+        send_response(session, 504, "AUTH not supported.");
     }
 }
 
