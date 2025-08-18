@@ -307,7 +307,6 @@ void *handle_client(void *arg) {
     if (session->passive_socket > 0) close(session->passive_socket);
     if (session->control_socket != -1) close(session->control_socket);
     if (session->data_socket != -1) close(session->data_socket);
-    if (session->passive_socket != -1) close(session->passive_socket);
     free(session);
     return NULL;
 }
