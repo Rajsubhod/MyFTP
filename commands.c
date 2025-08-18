@@ -161,7 +161,7 @@ void handle_auth(ftp_session_t* session, char* auth_type)
             return;
         }
 
-        send_response(session, 234, "Procede with SSL/TLS negotiation.");
+        send_response(session, 234, "Proceed with SSL/TLS negotiation.");
 
         session->ssl_control_channel = SSL_new(session->ctx);
         if (!session->ssl_control_channel)
