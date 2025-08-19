@@ -161,7 +161,7 @@ void handle_auth(ftp_session_t* session, char* auth_type)
             return;
         }
 
-        send_response(session, 234, "Procede with SSL/TLS negotiation.");
+        send_response(session, 234, "Proceed with SSL/TLS negotiation.");
 
         session->ssl_control_channel = SSL_new(session->ctx);
         if (!session->ssl_control_channel)
@@ -187,7 +187,7 @@ void handle_auth(ftp_session_t* session, char* auth_type)
     }
     else
     {
-        send_response(session, 504, "AUTH) not supported.");
+        send_response(session, 504, "AUTH not supported.");
     }
 }
 
@@ -269,7 +269,7 @@ void handle_type(ftp_session_t* session, char* type)
 {
     if (strcasecmp(type, "A") == 0)
     {
-        session->transfer_type = FTP_TYPE_IMAGE;
+        session->transfer_type = FTP_TYPE_ASCII;
         send_response(session, 200, "Type set to ASCII.");
     }
     else if (strcasecmp(type, "I") == 0)

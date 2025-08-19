@@ -75,7 +75,7 @@ SSL_CTX *create_ssl_context() {
 }
 
 int configure_ssl_context(SSL_CTX *ctx, ftp_server_state_t *server_state) {
-    if (SSL_CTX_use_certificate_file(ctx, server_state->config.CERT_FILE,SSL_FILETYPE_PEM) <= 0) {
+    if (SSL_CTX_use_certificate_file(ctx, server_state->config.CERT_FILE, SSL_FILETYPE_PEM) <= 0) {
         ERR_print_errors_fp(stderr);
         log_error("Failed to load certificate from %s\n", server_state->config.CERT_FILE);
         return 0;
@@ -160,7 +160,7 @@ int main(void) {
 
     printf("FTP Server listening on port %d\n", server_state->config.PORT);
     printf("FTP root directory: %s\n", server_state->config.FTP_ROOT);
-    printf("FTP Server listening of ip address: %s\n", inet_ntoa(server_addr.sin_addr));
+    printf("FTP Server listening on ip address: %s\n", inet_ntoa(server_addr.sin_addr));
 
     signal(SIGINT, handle_sigint);
     signal(SIGPIPE, SIG_IGN);
@@ -307,7 +307,6 @@ void *handle_client(void *arg) {
     if (session->passive_socket > 0) close(session->passive_socket);
     if (session->control_socket != -1) close(session->control_socket);
     if (session->data_socket != -1) close(session->data_socket);
-    if (session->passive_socket != -1) close(session->passive_socket);
     free(session);
     return NULL;
 }
