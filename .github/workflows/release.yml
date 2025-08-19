@@ -18,7 +18,7 @@ jobs:
 
       - name: Build project
         run: |
-          cmake -S . -B build
+          cmake -S . -B build -DBUILD_TESTING=OFF
           cmake --build build --config Release
 
       - name: Verify executable exists
