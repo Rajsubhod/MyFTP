@@ -21,6 +21,13 @@ jobs:
           cmake -S . -B build
           cmake --build build --config Release
 
+      - name: Verify executable exists
+        run: |
+          if [ ! -f build/my_ftp_server ]; then
+            echo "Executable not found: build/my_ftp_server"
+            exit 1
+          fi  
+
       - name: Upload Release Asset
         uses: softprops/action-gh-release@v2
         with:
